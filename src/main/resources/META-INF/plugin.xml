@@ -1,0 +1,21 @@
+<idea-plugin>
+    <id>com.example.testplugin.http-request-tool</id>
+    <name>Http Request Tool</name>
+    <version>1.0.0</version>
+    <vendor email="support@example.com">Example</vendor>
+    <idea-version since-build="241"/>
+
+    <description>
+        A simple IDEA plugin that opens a dialog from the menu bar and sends HTTP requests with URL, cookie, and method input.
+    </description>
+
+    <depends>com.intellij.modules.platform</depends>
+
+    <extensions defaultExtensionNs="com.intellij">
+        <toolWindow
+                id="HTTP Request"
+                anchor="left"
+                factoryClass="com.example.testplugin.HttpRequestToolWindowFactory"
+                canCloseContents="false"/>
+    </extensions>
+</idea-plugin>
