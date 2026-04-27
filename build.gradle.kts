@@ -19,6 +19,8 @@ dependencies {
             providers.gradleProperty("platformType"),
             providers.gradleProperty("platformVersion")
         )
+        bundledPlugin("com.intellij.java")
+        bundledPlugin("Git4Idea")
         javaCompiler()
     }
 }
@@ -26,5 +28,12 @@ dependencies {
 java {
     toolchain {
         languageVersion.set(JavaLanguageVersion.of(17))
+    }
+}
+
+tasks {
+    // 禁用这个导致报错的任务
+    buildSearchableOptions {
+        enabled = false
     }
 }

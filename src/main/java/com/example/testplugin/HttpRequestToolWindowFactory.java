@@ -11,8 +11,8 @@ public class HttpRequestToolWindowFactory implements ToolWindowFactory {
 
     @Override
     public void createToolWindowContent(@NotNull Project project, @NotNull ToolWindow toolWindow) {
-        HttpRequestPanel requestPanel = new HttpRequestPanel(project);
-        Content content = ContentFactory.getInstance().createContent(requestPanel.getComponent(), "", false);
+        PluginHomePanel homePanel = new PluginHomePanel(project);
+        Content content = ContentFactory.getInstance().createContent(homePanel.getComponent(), "", false);
         toolWindow.getContentManager().addContent(content);
     }
 }
