@@ -34,6 +34,7 @@ import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
 import java.awt.Insets;
 import java.util.List;
+import java.util.Map;
 
 public class PluginHomePanel {
     private final @Nullable Project project;
@@ -43,6 +44,8 @@ public class PluginHomePanel {
     private final JButton scanControllerButton  = new JButton("Scan Controller");
     private final JButton genDocButton          = new JButton("生成 AI 接口文档");
     private final JButton syncToYapiButton      = new JButton("同步到 YApi");
+    private final JButton listYapiInterfacesButton = new JButton("查询 YApi 接口列表");
+    private final JButton getYapiInterfaceDetailButton = new JButton("查询接口详情");
 
     // ── AI config ────────────────────────────────────────────────────────────
     private final JTextField    apiUrlField   = new JTextField("https://api.deepseek.com", 28);
@@ -54,6 +57,7 @@ public class PluginHomePanel {
     private final JPasswordField yapiTokenField = new JPasswordField("20d7f0566a18421f4a98a7fa01fdb7ea94f48fde6d22f1e1727722223dbc882f", 24);
     private final JTextField    yapiProjectIdField = new JTextField("11", 8);
     private final JTextField    yapiCatIdField     = new JTextField("11", 8);
+    private final JTextField    yapiInterfaceIdField = new JTextField(6);
 
     private final DefaultListModel<CommitEntry> listModel = new DefaultListModel<>();
     private final JList<CommitEntry> commitList = new JList<>(listModel);
@@ -79,6 +83,8 @@ public class PluginHomePanel {
         scanControllerButton.addActionListener(e -> scanController());
         genDocButton.addActionListener(e -> generateAiDoc(lastScannedJson));
         syncToYapiButton.addActionListener(e -> syncToYapi(lastScannedJson, lastAiDoc));
+        listYapiInterfacesButton.addActionListener(e -> queryYapiInterfaceList());
+        getYapiInterfaceDetailButton.addActionListener(e -> queryYapiInterfaceDetail());
 
         commitList.addListSelectionListener(e -> {
             if (!e.getValueIsAdjusting()) {
@@ -96,6 +102,7 @@ public class PluginHomePanel {
         yapiTokenField.setEditable(false);
         yapiProjectIdField.setEditable(false);
         yapiCatIdField.setEditable(false);
+        yapiInterfaceIdField.setEditable(true);
     }
 
     public JComponent getComponent() {
@@ -169,6 +176,17 @@ public class PluginHomePanel {
 
         c.gridx = 2; c.weightx = 0;
         panel.add(syncToYapiButton, c);
+
+        c.gridx = 0; c.gridy = 2; c.weightx = 0;
+        panel.add(new JLabel("接口 ID:"), c);
+        c.gridx = 1; c.weightx = 0.3;
+        panel.add(yapiInterfaceIdField, c);
+
+        c.gridx = 2; c.weightx = 0;
+        panel.add(listYapiInterfacesButton, c);
+
+        c.gridx = 3; c.weightx = 0;
+        panel.add(getYapiInterfaceDetailButton, c);
 
         return panel;
     }
@@ -415,6 +433,137 @@ public class PluginHomePanel {
         });
     }
     // ── 操作：分析选中的 Commit ────────────────────────────────────────────────
+
+    private void queryYapiInterfaceList() {
+        if (project == null) {
+            resultArea.setText("未找到活跃项目，请在项目中打开此工具窗口。需要先打开项目才能查询 YApi 接口。");
+            return;
+        }
+
+        String yapiUrl = yapiUrlField.getText().trim();
+        String token = new String(yapiTokenField.getPassword()).trim();
+        String projectIdText = yapiProjectIdField.getText().trim();
+        String catIdText = yapiCatIdField.getText().trim();
+
+        if (yapiUrl.isBlank()) {
+            resultArea.setText("请填写 YApi URL。例： http://localhost:3000");
+            return;
+        }
+        if (token.isBlank()) {
+            resultArea.setText("请填写 YApi Token。" );
+            return;
+        }
+        if (projectIdText.isBlank() || catIdText.isBlank()) {
+            resultArea.setText("请填写 YApi Project ID 和 Cat ID。" );
+            return;
+        }
+
+        int projectId;
+        int catId;
+        try {
+            projectId = Integer.parseInt(projectIdText);
+            catId = Integer.parseInt(catIdText);
+        } catch (NumberFormatException ex) {
+            resultArea.setText("Project ID 和 Cat ID 必须是整数。" );
+            return;
+        }
+
+        listYapiInterfacesButton.setEnabled(false);
+        resultArea.setText("正在查询 YApi 接口列表，请稍候……");
+
+        ProgressManager.getInstance().run(new Task.Backgroundable(project, "Query YApi Interfaces", false) {
+            @Override
+            public void run(@NotNull ProgressIndicator indicator) {
+                indicator.setIndeterminate(true);
+                try {
+                    var list = YapiSyncClient.listInterfaces(yapiUrl, token, projectId, catId,
+                            step -> ApplicationManager.getApplication().invokeLater(() -> resultArea.setText(step)));
+                    StringBuilder builder = new StringBuilder();
+                    if (list.isEmpty()) {
+                        builder.append("未找到任何接口。\n");
+                    } else {
+                        builder.append("共找到 ").append(list.size()).append(" 个接口：\n\n");
+                        for (Map<String, Object> item : list) {
+                            Object id = item.getOrDefault("_id", item.get("id"));
+                            builder.append("ID:").append(id)
+                                    .append("  ")
+                                    .append(String.valueOf(item.getOrDefault("method", ""))).append(" ")
+                                    .append(String.valueOf(item.getOrDefault("path", "")))
+                                    .append("  标题:").append(String.valueOf(item.getOrDefault("title", item.getOrDefault("name", ""))))
+                                    .append("\n");
+                        }
+                    }
+                    ApplicationManager.getApplication().invokeLater(() -> {
+                        resultArea.setText(builder.toString());
+                        resultArea.setCaretPosition(0);
+                        listYapiInterfacesButton.setEnabled(true);
+                    });
+                } catch (Exception ex) {
+                    ApplicationManager.getApplication().invokeLater(() -> {
+                        resultArea.setText("查询 YApi 接口列表失败：\n" + ex.getMessage());
+                        listYapiInterfacesButton.setEnabled(true);
+                    });
+                }
+            }
+        });
+    }
+
+    private void queryYapiInterfaceDetail() {
+        if (project == null) {
+            docArea.setText("未找到活跃项目，请在项目中打开此工具窗口。需要先打开项目才能查询接口详情。");
+            return;
+        }
+
+        String yapiUrl = yapiUrlField.getText().trim();
+        String token = new String(yapiTokenField.getPassword()).trim();
+        String idText = yapiInterfaceIdField.getText().trim();
+
+        if (yapiUrl.isBlank()) {
+            docArea.setText("请填写 YApi URL。例： http://localhost:3000");
+            return;
+        }
+        if (token.isBlank()) {
+            docArea.setText("请填写 YApi Token。" );
+            return;
+        }
+        if (idText.isBlank()) {
+            docArea.setText("请填写接口 ID。" );
+            return;
+        }
+
+        int interfaceId;
+        try {
+            interfaceId = Integer.parseInt(idText);
+        } catch (NumberFormatException ex) {
+            docArea.setText("接口 ID 必须是整数。");
+            return;
+        }
+
+        getYapiInterfaceDetailButton.setEnabled(false);
+        docArea.setText("正在查询接口详情，请稍候……");
+
+        ProgressManager.getInstance().run(new Task.Backgroundable(project, "Query YApi Interface Detail", false) {
+            @Override
+            public void run(@NotNull ProgressIndicator indicator) {
+                indicator.setIndeterminate(true);
+                try {
+                    Map<String, Object> detail = YapiSyncClient.getInterfaceDetail(yapiUrl, token, interfaceId,
+                            step -> ApplicationManager.getApplication().invokeLater(() -> docArea.setText(step)));
+                    String json = new com.google.gson.GsonBuilder().setPrettyPrinting().create().toJson(detail);
+                    ApplicationManager.getApplication().invokeLater(() -> {
+                        docArea.setText(json);
+                        docArea.setCaretPosition(0);
+                        getYapiInterfaceDetailButton.setEnabled(true);
+                    });
+                } catch (Exception ex) {
+                    ApplicationManager.getApplication().invokeLater(() -> {
+                        docArea.setText("查询接口详情失败：\n" + ex.getMessage());
+                        getYapiInterfaceDetailButton.setEnabled(true);
+                    });
+                }
+            }
+        });
+    }
 
     private void analyzeSelectedCommit(@NotNull CommitEntry entry) {
         if (project == null) {

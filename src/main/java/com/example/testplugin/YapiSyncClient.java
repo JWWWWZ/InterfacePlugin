@@ -131,6 +131,36 @@ public final class YapiSyncClient {
         return (List<Map<String, Object>>) listObj;
     }
 
+    public static @NotNull List<Map<String, Object>> listInterfaces(
+            @NotNull String yapiBaseUrl,
+            @NotNull String authToken,
+            int projectId,
+            int catId,
+            @NotNull Consumer<String> onProgress
+    ) throws Exception {
+        String baseUrl = normalizeBaseUrl(yapiBaseUrl);
+        return listExistingInterfaces(baseUrl, authToken, projectId, catId, onProgress);
+    }
+
+    public static @NotNull Map<String, Object> getInterfaceDetail(
+            @NotNull String yapiBaseUrl,
+            @NotNull String authToken,
+            int interfaceId,
+            @NotNull Consumer<String> onProgress
+    ) throws Exception {
+        String baseUrl = normalizeBaseUrl(yapiBaseUrl);
+        String url = baseUrl + "/api/interface/get?id=" + interfaceId + "&token=" + authToken;
+        onProgress.accept("GET " + url);
+        String body = sendGetRequest(url);
+        ensureSuccess(body, "获取接口详情失败");
+        Map<String, Object> parsed = GSON.fromJson(body, MAP_TYPE);
+        Object data = parsed.get("data");
+        if (data instanceof Map<?, ?> dataMap) {
+            return (Map<String, Object>) dataMap;
+        }
+        return Map.of();
+    }
+
     private static OptionalInt findExistingInterfaceId(
             @NotNull List<Map<String, Object>> existing,
             @NotNull String path,
